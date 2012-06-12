@@ -1,0 +1,34 @@
+<package>
+  <description brief="water_simulation">
+
+     water_simulation
+
+  </description>
+  <author>Nikolas Engelhard</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/water_simulation</url>
+  <depend package="std_msgs"/>
+  <depend package="opencv2"/>
+  <depend package="rosbag"/>
+  <depend package="image_transport"/>
+  <depend package="image_view"/>
+  <depend package="geometry_msgs"/>
+  <depend package="eigen"/>
+  <depend package="camera_calibration"/>
+  <depend package="tf"/>
+  <depend package="tf_conversions"/>
+  <depend package="roscpp"/>
+  <depend package="image_geometry"/>
+  <depend package="image_proc"/>
+  <depend package="image_rotate"/>
+  <depend package="image_transport"/>
+  <depend package="image_view"/>
+  <depend package="cv_bridge"/>
+  <depend package="pcl_ros"/>
+  <depend package="pcl"/>
+  <depend package="visualization_msgs"/>
+  <depend package="geometry_msgs"/>
+</package>
+
+
