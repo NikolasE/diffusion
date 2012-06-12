@@ -52,10 +52,37 @@ void Water_Simulator::setScene(const cv::Mat& land){
   dummy.setTo(0);
  }
 
-
  land_cloud = img2Cloud(land_height,cv::Scalar(255,0,0));
 }
 
+
+
+Cloud Water_Simulator::getWaterCloud(){
+ Cloud c;
+ c.reserve(water_depth.cols*water_depth.rows);
+
+ pcl_Point p;
+ p.r = 0;
+ p.g = 0;
+ p.b = 255;
+
+
+ for (int i=0; i<water_depth.cols; ++i){
+  for (int j=0; j<water_depth.rows; ++j){
+
+   p.x = i*px2m_scale;
+   p.y = j*px2m_scale;
+   p.z = water_depth.at<double>(j,i);
+   if (p.z < 0.002) continue;
+
+   p.z += land_height.at<double>(j,i);
+
+   c.push_back(p);
+  }
+ }
+
+ return c;
+}
 
 
 void Water_Simulator::sendCloudVisualization(){
@@ -66,11 +93,11 @@ void Water_Simulator::sendCloudVisualization(){
  msg->header.stamp = ros::Time::now ();
  pub_land.publish(msg);
 
-// Cloud water = img2Cloud(water_depth, cv::Scalar(0,0,255));//, true);
-// msg = water.makeShared();
-// msg->header.frame_id = "/fixed_frame";
-// msg->header.stamp = ros::Time::now ();
-// pub_water.publish(msg);
+
+ msg = getWaterCloud().makeShared();
+ msg->header.frame_id = "/fixed_frame";
+ msg->header.stamp = ros::Time::now ();
+ pub_water.publish(msg);
 
  cv::Mat total = land_height+water_depth;
 
@@ -111,7 +138,7 @@ void Water_Simulator::showWaterImages(){
 
  //
  double max_landheight = 0.3;
- double max_waterdepth = 0.2;
+// double max_waterdepth = 0.2;
 
  double foo = 0;
  for (int x=1; x<water_depth.cols-1; ++x)
@@ -137,7 +164,6 @@ void Water_Simulator::showWaterImages(){
 
  // double val = water_scaled.at<double>(480/2,640/2);
  // ROS_INFO("val: %f", val);
-
  // cv::Mat sum = (land_height+water_depth)/(max_landheight+max_waterdepth);
 
  cv::imshow("landHeight", land_scaled);
@@ -151,20 +177,25 @@ void Water_Simulator::showWaterImages(){
 void Water_Simulator::flow_stepStone(){
 
  double c = 1;
+
+ assert(dummy.size == water_depth.size);
+
  dummy.setTo(0);
 
-
  double total_water = 0;
-
  int step = 1;
- int range = 1;
+ int cells_used = 0;
 
 
- for (int x=0; x<water_depth.cols;x+=step)
+ float heights[9];
+
+
+ for (int x=0; x<water_depth.cols;x+=step){
   for (int y=0; y<water_depth.rows; y+=step){
 
-   // ROS_INFO("%i %i", x,y);
+   //ROS_INFO("%i %i", x,y);
 
+   // absorbing border
    if (x==0 || y == 0 || x == water_depth.cols || y == water_depth.rows){
     water_depth.at<double>(y,x) = 0;
     continue;
@@ -175,89 +206,98 @@ void Water_Simulator::flow_stepStone(){
    double water = water_depth.at<double>(y,x);
    double stone = land_height.at<double>(y,x);
 
+   // cell with less than half a mm of water is ignored
+   if (water <= 0.005) continue;
 
-   //ROS_INFO("Water: %f, stone: %f", water, stone);
-
-
-   if (water <= 0) continue;
-
-   //  cout << water << endl;
-
-   //   cout << "stone " << stone << endl;
-   //   if (stone < 0.05) continue;
-
+   cells_used++;
    total_water+=water;
-
-
-   //   ROS_INFO("at: %i %i: water: %f stone: %f", x,y,water, stone);
 
 
    double max_height = water+stone;
    double mean = 0;
    double weight_sum = 0;
-   float weight;
 
 
    double dist_sum = 0;
 
-   for (int dx=-range; dx<=range; dx++)
-    for (int dy=-range; dy<=range; dy++)
+   for (int dx=-1; dx<=1; dx++)
+    for (int dy=-1; dy<=1; dy++)
      {
      if (dx == 0 && dy == 0) continue;
 
      double height = water_depth.at<double>(y+dy,x+dx)+land_height.at<double>(y+dy,x+dx);
 
      //     ROS_INFO("at %i %i: height: %f, neighbour: %f",x,y,max_height, height);
-
-
      //     if (land_height.at<double>(y+dy,x+dx) > stone) continue;
 
-     if (height >= max_height) continue;
+     if (height >= max_height) {
+      heights[(dx+1)*3+(dy+1)] = -1;
+      continue;
+     }else{
+      heights[(dx+1)*3+(dy+1)] = height;
+     }
 
-     weight = 1;
 
      dist_sum += (max_height-height);
 
-     mean += weight*height;
-     weight_sum += weight;
+     mean += height;
+     weight_sum++;
 
      }
 
    if (weight_sum==0) continue;
-
    mean /= weight_sum;
-
-   assert(mean == mean);
 
    // wie viel Wasser kann abfliessen?
    double mass = std::min((max_height-mean)*c,water);
 
    dummy.at<double>(y,x) -= mass;
-
    //   ROS_INFO("at: %i %i: water: %f stone: %f, mass: %f, weight_sum: %f", x,y,water, stone, mass, weight_sum);
 
    // Verteilung der Masse auf die Nachbarn
-   for (int dx=-range; dx<=range; dx++)
-    for (int dy=-range; dy<=range; dy++)
+   for (int dx=-1; dx<=1; dx++)
+    for (int dy=-1; dy<=1; dy++)
      {
      if (dx == 0 && dy == 0) continue;
-     double height = water_depth.at<double>(y+dy,x+dx)+land_height.at<double>(y+dy,x+dx);
+     //double height = water_depth.at<double>(y+dy,x+dx)+land_height.at<double>(y+dy,x+dx);
 
-     if (height >= max_height)  continue;
+     float height = heights[(dx+1)*3+(dy+1)];
+
+
+
+//     ROS_INFO("height: %f, max: %f", height,max_height);
+
+     if (height<0) continue;
+
+     //if (height >= max_height)  continue;
+
+     //float height2 = heights[(dx+1)*3+(dy+1)];
+
+//     ROS_INFO("Heights: %f %f", height, height2);
+
+     //assert(abs(height- height2)<0.0001);
+
+
      //     if (land_height.at<double>(y+dy,x+dx) > stone) continue;
+
 
 
      // wassermenge haengt von relativer Hoehe ab
      double flow = (max_height-height)/dist_sum*mass;
 
      //     double flow = mass/weight_sum;
-
+//     ROS_INFO("var: %i %i  %f", x,dx, flow);
      dummy.at<double>(y+dy,x+dx) += flow;
+
      }
 
+
   }
+ }
 
  water_depth += dummy;
+
+// ROS_INFO("Used %i cells (%.1f%%)",cells_used, cells_used*100.0/(water_depth.cols*water_depth.rows));
 
  // water_depth -= 0.00001;
 
@@ -410,7 +450,7 @@ Cloud Water_Simulator::projectIntoImage(cv::Mat& img, cv::Mat P){
 void Water_Simulator::setWaterHeight(double new_height, int x, int y){
  assert(new_height>0);
 
- cv::circle(water_depth, cv::Point(x,y),20, cv::Scalar::all(new_height),-1);
+ cv::circle(water_depth, cv::Point(x,y),5, cv::Scalar::all(new_height),-1);
 
  //   water_depth.at<double>(y,x) = new_height;
 }

@@ -28,7 +28,9 @@ int main(int argc, char ** argv){
  simulator = new Water_Simulator();
 
 
- cv::Mat land = cv::imread("imgs/land_gradient.png",0);
+ cv::Mat land = cv::imread("imgs/maze.png",0);
+
+ cv::resize(land, land, cv::Size(), 0.5,0.5, CV_INTER_CUBIC);
 
  simulator->setScene(land);
 
@@ -40,8 +42,8 @@ int main(int argc, char ** argv){
 
   ROS_INFO("iteration %i", iteration);
 
-  for (uint i=0; i<40; ++i){
-   simulator->setWaterHeight(0.4,640/2,480/2);
+  for (uint i=0; i<60; ++i){
+   simulator->setWaterHeight(0.2,80*0.5,200*0.5);
    simulator->flow_stepStone();
    iteration++;
   }
