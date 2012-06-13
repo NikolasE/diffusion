@@ -26,38 +26,54 @@ int main(int argc, char ** argv){
  ros::init(argc, argv,"simulation");
 
  simulator = new Water_Simulator();
+ cv::Mat land;
 
+ if (argc > 1)
+  land = cv::imread(argv[1],0);
+ else
+  land = cv::imread("imgs/land_circ.png",0);
 
- cv::Mat land = cv::imread("imgs/maze.png",0);
+ float scale = 0.5;
 
- cv::resize(land, land, cv::Size(), 0.5,0.5, CV_INTER_CUBIC);
+ cv::resize(land, land, cv::Size(),scale,scale, CV_INTER_CUBIC);
 
  simulator->setScene(land);
 
  ros::Rate r(10);
 
- int iteration =0;
+ int iteration = 0;
+
+ int iter_per_step = 100;
 
  while (ros::ok()){
 
-  ROS_INFO("iteration %i", iteration);
+//  ROS_INFO("iteration %i", iteration);
 
-  for (uint i=0; i<60; ++i){
-   simulator->setWaterHeight(0.2,80*0.5,200*0.5);
+
+
+  for (int i=0; i<iter_per_step; ++i){
+   simulator->setWaterHeight(0.2,80*scale,200*scale);
    simulator->flow_stepStone();
    iteration++;
   }
-  simulator->sendCloudVisualization();
 
+
+
+
+
+  ros::Time start= ros::Time::now();
+  simulator->sendCloudVisualization();
+  ros::Duration dt = (ros::Time::now()-start);
+  ROS_INFO("visualization: %.1f ms", dt.toNSec()/1000.0/1000.0);
 
 
 
   r.sleep();
  }
 
-// cv::namedWindow("land");
-// cv::imshow("land", land);
-// cv::waitKey(-1);
+ // cv::namedWindow("land");
+ // cv::imshow("land", land);
+ // cv::waitKey(-1);
 
 
 
