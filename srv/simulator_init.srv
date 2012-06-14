@@ -1,0 +1,8 @@
+sensor_msgs/Image land_img
+int32 id
+bool reset_water
+float32 viscosity  # 0 < viscosity <= 1
+---
+int64 id_cpy  # copy from request
+int32 width   # taken from land_img
+int32 height  # taken from land_img

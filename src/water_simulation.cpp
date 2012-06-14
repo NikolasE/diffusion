@@ -40,12 +40,39 @@ Cloud Water_Simulator::img2Cloud(const cv::Mat& img, cv::Scalar color,bool ignor
 
 
 
+void Water_Simulator::updateScene(const cv::Mat& land){
 
-void Water_Simulator::setScene(const cv::Mat& land){
 
  land.convertTo(land_height, CV_64FC1,img_to_height_factor);
+ ROS_INFO("Initializing simulation with %i cells", land.rows*land.cols);
 
- if (water_depth.cols == 0){
+ land_cloud = img2Cloud(land_height,cv::Scalar(255,0,0));
+ land_cloud_msg = land_cloud.makeShared();
+
+ land_cloud_msg->header.frame_id = "/fixed_frame";
+
+
+
+}
+
+
+void Water_Simulator::setScene(const cv::Mat& land, float viscosity){
+
+ viscosity_ = viscosity;
+
+ if (!(0<viscosity_ && viscosity_ <= 1)){
+  ROS_FATAL("Water_Simulator::setScene: viscosity has to be in (0,1] !");
+  assert(0<viscosity_ && viscosity_ <= 1);
+ }
+
+ // land.convertTo(land_height, CV_64FC1,img_to_height_factor);
+
+
+ updateScene(land);
+
+
+// if (water_depth.cols == 0)
+  {
   water_depth = cv::Mat(land.rows,land.cols,CV_64FC1);
   flow = cv::Mat(land.rows,land.cols,CV_64FC1);
   water_depth.setTo(0);
@@ -53,12 +80,12 @@ void Water_Simulator::setScene(const cv::Mat& land){
  }
 
 
- ROS_INFO("Initializing simulation with %i cells", land.rows*land.cols);
-
- land_cloud = img2Cloud(land_height,cv::Scalar(255,0,0));
- land_cloud_msg = land_cloud.makeShared();
-
- land_cloud_msg->header.frame_id = "/fixed_frame";
+// ROS_INFO("Initializing simulation with %i cells", land.rows*land.cols);
+//
+// land_cloud = img2Cloud(land_height,cv::Scalar(255,0,0));
+// land_cloud_msg = land_cloud.makeShared();
+//
+// land_cloud_msg->header.frame_id = "/fixed_frame";
 
 }
 
@@ -184,7 +211,6 @@ void Water_Simulator::flow_stepStone(){
 
  ros::Time start= ros::Time::now();
 
- double viscosity = 1;
 
  assert(flow.size == water_depth.size);
 
@@ -267,7 +293,7 @@ void Water_Simulator::flow_stepStone(){
    mean /= lower_cell_cnt;
 
    // wie viel Wasser kann abfliessen?
-   double mass = std::min((max_height-mean)*viscosity,water);
+   double mass = std::min((max_height-mean)*viscosity_,water);
 
    flow.at<double>(y,x) -= mass;
 
@@ -324,7 +350,7 @@ void Water_Simulator::flow_stepStone(){
  double dt_per_k_cells = dt.toNSec()*1.0/(water_depth.cols*water_depth.rows);
 
 
- ROS_INFO("total for %i cells: %f ms, %f mys per 1000 cells",dt_per_k_cells,water_depth.cols*water_depth.rows,dt.toNSec()/1000.0/1000.0);
+// ROS_INFO("total for %i cells: %f ms, %f mys per 1000 cells",dt_per_k_cells,water_depth.cols*water_depth.rows,dt.toNSec()/1000.0/1000.0);
 
 
 

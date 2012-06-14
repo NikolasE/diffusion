@@ -1,0 +1,6 @@
+int32 id                      # should correspond to id in simulator_init or no simulation is performed
+int32 iteration_cnt           # number of iterations to be simulated
+msg_source_sink[] sources_sinks
+---
+bool valid_id                 # false if wrong id was given
+sensor_msgs/Image water_img   # distribution of water on the surface

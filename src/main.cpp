@@ -12,13 +12,35 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/core/core.hpp>
 #include <ros/publisher.h>
-
+#include <cv_bridge/cv_bridge.h>
+#include <sensor_msgs/image_encodings.h>
 
 #include "water_simulation.h"
+
+#include "water_simulation/simulator_init.h"
 
 using namespace std;
 
 Water_Simulator* simulator;
+
+namespace enc = sensor_msgs::image_encodings;
+
+bool init_watersimulation(water_simulation::simulator_init::Request &req, water_simulation::simulator_init::Response &res){
+
+
+ cv_bridge::CvImagePtr cv_ptr;
+ cv_ptr = cv_bridge::toCvCopy(req.land_img, enc::MONO8);
+
+ simulator->setScene(cv_ptr->image, req.viscosity);
+
+ return true;
+
+}
+
+
+
+
+
 
 
 int main(int argc, char ** argv){
@@ -30,10 +52,17 @@ int main(int argc, char ** argv){
 
  if (argc > 1)
   land = cv::imread(argv[1],0);
- else
-  land = cv::imread("imgs/land_circ.png",0);
+ else{
+  ROS_INFO("Water simulation started as Service!");
 
- float scale = 0.5;
+
+
+
+
+ }
+
+
+ float scale = 0.4;
 
  cv::resize(land, land, cv::Size(),scale,scale, CV_INTER_CUBIC);
 
@@ -43,7 +72,13 @@ int main(int argc, char ** argv){
 
  int iteration = 0;
 
- int iter_per_step = 100;
+ int iter_per_step = 50;
+
+
+ float x = (land.cols -   10);
+ float y = land.rows/2;
+
+ ROS_INFO("water at %f %f", x, y);
 
  while (ros::ok()){
 
@@ -52,7 +87,7 @@ int main(int argc, char ** argv){
 
 
   for (int i=0; i<iter_per_step; ++i){
-   simulator->setWaterHeight(0.2,80*scale,200*scale);
+   simulator->setWaterHeight(0.2,x,y);
    simulator->flow_stepStone();
    iteration++;
   }
@@ -64,7 +99,7 @@ int main(int argc, char ** argv){
   ros::Time start= ros::Time::now();
   simulator->sendCloudVisualization();
   ros::Duration dt = (ros::Time::now()-start);
-  ROS_INFO("visualization: %.1f ms", dt.toNSec()/1000.0/1000.0);
+//  ROS_INFO("visualization: %.1f ms", dt.toNSec()/1000.0/1000.0);
 
 
 
