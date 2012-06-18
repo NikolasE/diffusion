@@ -34,6 +34,8 @@ struct Water_Simulator {
  ros::NodeHandle nh;
  ros::Publisher pub_water, pub_land, pub_sum, pub_flow;
 
+ int land_id;
+
 
  cv::Mat land_height;
  cv::Mat water_depth;
@@ -81,7 +83,7 @@ struct Water_Simulator {
 
 
  void showWaterImages();
- void setWaterHeight(double new_height, int x, int y);
+ void setWaterHeight(double new_height, float radius, int x, int y);
 
  void updateLandHeight(const Cloud& cloud, const cv::Mat& mask);
 

@@ -42,17 +42,13 @@ Cloud Water_Simulator::img2Cloud(const cv::Mat& img, cv::Scalar color,bool ignor
 
 void Water_Simulator::updateScene(const cv::Mat& land){
 
+ land_height = land;
 
- land.convertTo(land_height, CV_64FC1,img_to_height_factor);
  ROS_INFO("Initializing simulation with %i cells", land.rows*land.cols);
 
  land_cloud = img2Cloud(land_height,cv::Scalar(255,0,0));
  land_cloud_msg = land_cloud.makeShared();
-
  land_cloud_msg->header.frame_id = "/fixed_frame";
-
-
-
 }
 
 
@@ -65,27 +61,12 @@ void Water_Simulator::setScene(const cv::Mat& land, float viscosity){
   assert(0<viscosity_ && viscosity_ <= 1);
  }
 
- // land.convertTo(land_height, CV_64FC1,img_to_height_factor);
-
-
  updateScene(land);
 
-
-// if (water_depth.cols == 0)
-  {
-  water_depth = cv::Mat(land.rows,land.cols,CV_64FC1);
-  flow = cv::Mat(land.rows,land.cols,CV_64FC1);
-  water_depth.setTo(0);
-  flow.setTo(0);
- }
-
-
-// ROS_INFO("Initializing simulation with %i cells", land.rows*land.cols);
-//
-// land_cloud = img2Cloud(land_height,cv::Scalar(255,0,0));
-// land_cloud_msg = land_cloud.makeShared();
-//
-// land_cloud_msg->header.frame_id = "/fixed_frame";
+ water_depth = cv::Mat(land.rows,land.cols,CV_64FC1);
+ flow = cv::Mat(land.rows,land.cols,CV_64FC1);
+ water_depth.setTo(0);
+ flow.setTo(0);
 
 }
 
@@ -132,13 +113,13 @@ void Water_Simulator::sendCloudVisualization(){
  msg->header.stamp = ros::Time::now ();
  pub_water.publish(msg);
 
-// cv::Mat total = land_height+water_depth;
-//
-// Cloud total_c = img2Cloud(total, cv::Scalar(0,0,255));
-// msg = total_c.makeShared();
-// msg->header.frame_id = "/fixed_frame";
-// msg->header.stamp = ros::Time::now ();
-// pub_sum.publish(msg);
+ // cv::Mat total = land_height+water_depth;
+ //
+ // Cloud total_c = img2Cloud(total, cv::Scalar(0,0,255));
+ // msg = total_c.makeShared();
+ // msg->header.frame_id = "/fixed_frame";
+ // msg->header.stamp = ros::Time::now ();
+ // pub_sum.publish(msg);
 
 }
 
@@ -213,6 +194,8 @@ void Water_Simulator::flow_stepStone(){
 
 
  assert(flow.size == water_depth.size);
+ assert(land_height.size == water_depth.size);
+
 
  flow.setTo(0);
 
@@ -328,21 +311,21 @@ void Water_Simulator::flow_stepStone(){
 
 
 
-// ROS_INFO("Flow: %f, absorbed: %f", out_flow, absorbed);
+ // ROS_INFO("Flow: %f, absorbed: %f", out_flow, absorbed);
 
 
-// Show flow:
+ // Show flow:
 
-// double min_val, max_val;
-// cv::minMaxLoc(flow, &min_val,&max_val, NULL, NULL);
-// cv::namedWindow("flow");
-// cv::imshow("flow", flow/max_val);
-// cv::waitKey(1);
+ // double min_val, max_val;
+ // cv::minMaxLoc(flow, &min_val,&max_val, NULL, NULL);
+ // cv::namedWindow("flow");
+ // cv::imshow("flow", flow/max_val);
+ // cv::waitKey(1);
 
 
  water_depth += flow;
 
-// ROS_INFO("Used %i cells (%.1f%%)",cells_used, cells_used*100.0/(water_depth.cols*water_depth.rows));
+ // ROS_INFO("Used %i cells (%.1f%%)",cells_used, cells_used*100.0/(water_depth.cols*water_depth.rows));
 
  // water_depth -= 0.00001;
  ros::Duration dt = (ros::Time::now()-start);
@@ -350,7 +333,7 @@ void Water_Simulator::flow_stepStone(){
  double dt_per_k_cells = dt.toNSec()*1.0/(water_depth.cols*water_depth.rows);
 
 
-// ROS_INFO("total for %i cells: %f ms, %f mys per 1000 cells",dt_per_k_cells,water_depth.cols*water_depth.rows,dt.toNSec()/1000.0/1000.0);
+ // ROS_INFO("total for %i cells: %f ms, %f mys per 1000 cells",dt_per_k_cells,water_depth.cols*water_depth.rows,dt.toNSec()/1000.0/1000.0);
 
 
 
@@ -374,7 +357,7 @@ void Water_Simulator::createSimData(){
 
 
  water_depth.setTo(0);
- setWaterHeight(0.1,640/2,480/2);
+ setWaterHeight(0.1,5, 640/2,480/2);
 
  // cv::namedWindow("land");
  // cv::imshow("land", land_height/max_height);
@@ -494,10 +477,10 @@ Cloud Water_Simulator::projectIntoImage(cv::Mat& img, cv::Mat P){
 
  */
 
-void Water_Simulator::setWaterHeight(double new_height, int x, int y){
- assert(new_height>0);
+void Water_Simulator::setWaterHeight(double new_height, float radius,  int x, int y){
+ assert(new_height>=0);
 
- cv::circle(water_depth, cv::Point(x,y),5, cv::Scalar::all(new_height),-1);
+ cv::circle(water_depth, cv::Point(x,y),radius, cv::Scalar::all(new_height),-1);
 
  //   water_depth.at<double>(y,x) = new_height;
 }
