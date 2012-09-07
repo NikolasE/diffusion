@@ -2,5 +2,6 @@ sensor_msgs/Image land_img
 int32 id
 bool reset_water
 float32 viscosity  # 0 < viscosity <= 1
+bool add_sink_border
 ---
 int64 id_cpy  # copy from request
