@@ -5,7 +5,7 @@
  *      Author: Nikolas Engelhard
  */
 
-#include "water_simulation.h"
+#include "water_simulation/water_simulation.h"
 using namespace std;
 
 Cloud Water_Simulator::img2Cloud(const cv::Mat& img, cv::Scalar color,bool ignore_zero){
@@ -103,31 +103,33 @@ Cloud Water_Simulator::getWaterCloud(){
 void Water_Simulator::sendCloudVisualization(){
 
 
- // land cloud doesn't change often
- land_cloud_msg->header.stamp = ros::Time::now ();
- pub_land.publish(land_cloud_msg);
+ if (pub_land.getNumSubscribers()>0){
+  // land cloud doesn't change often
+  land_cloud_msg->header.stamp = ros::Time::now ();
+  pub_land.publish(land_cloud_msg);
+ }
 
 
- Cloud::Ptr msg = getWaterCloud().makeShared();
- msg->header.frame_id = "/fixed_frame";
- msg->header.stamp = ros::Time::now ();
- pub_water.publish(msg);
+ if (pub_water.getNumSubscribers()>0){
+  Cloud::Ptr msg = getWaterCloud().makeShared();
+  msg->header.frame_id = "/fixed_frame";
+  msg->header.stamp = ros::Time::now ();
+  pub_water.publish(msg);
+ }
 
  // cv::Mat total = land_height+water_depth;
  //
+// if (pub_sum.getNumSubscribers()>0){
  // Cloud total_c = img2Cloud(total, cv::Scalar(0,0,255));
  // msg = total_c.makeShared();
  // msg->header.frame_id = "/fixed_frame";
  // msg->header.stamp = ros::Time::now ();
  // pub_sum.publish(msg);
+// }
 
 }
 
 
-
-
-
-// uses -z!
 void Water_Simulator::updateLandHeight(const Cloud& cloud, const cv::Mat& mask){
 
  assert(int(cloud.width) == land_height.cols && int(cloud.height) == land_height.rows);
@@ -138,8 +140,8 @@ void Water_Simulator::updateLandHeight(const Cloud& cloud, const cv::Mat& mask){
  for (uint x=0; x<cloud.width; ++x)
   for (uint y=0; y<cloud.height; ++y){
    pcl_Point p = cloud.at(x,y);
-   if (!(p.x == p.x)) continue; // don't change depth if none was measures (is intially zero)
-   land_height.at<double>(y,x) = -p.z;
+   if (!(p.x == p.x)) continue; // don't change depth if none was measured (is intially zero)
+   land_height.at<double>(y,x) = p.z;
   }
 
 }
@@ -182,6 +184,8 @@ void Water_Simulator::showWaterImages(){
 
  cv::imshow("landHeight", land_scaled);
  cv::imshow("waterDepth", water_scaled);
+
+ cv::waitKey(10);
  //  cv::imshow("sum", sum);
 
 }
@@ -218,18 +222,20 @@ void Water_Simulator::flow_stepStone(){
    if (x==0 || y == 0 || x == water_depth.cols-1 || y == water_depth.rows-1){
     //water_depth.at<double>(y,x) = min(0.5,water_depth.at<double>(y,x)); // wall
 
-    absorbed += water_depth.at<double>(y,x);
+    if (dry_border){ // absorbing border
+     absorbed += water_depth.at<double>(y,x);
+     water_depth.at<double>(y,x) = 0;
+    }
 
-    water_depth.at<double>(y,x) = 0; // absorbing border
     continue;
    }
 
    // if (mask_.at<uchar>(y,x) == 0) continue;
 
-
    double water = water_depth.at<double>(y,x);
 
    // cell with less than half a mm of water is ignored
+   // TODO: let water percolate
    if (water <= 0.005) continue;
 
    double stone = land_height.at<double>(y,x);
@@ -366,7 +372,7 @@ void Water_Simulator::createSimData(){
 
 }
 
-
+/*
 void Water_Simulator::flow_step(){
 
  double c = 0.9;
@@ -402,8 +408,6 @@ void Water_Simulator::flow_step(){
 
    mean /= weight_sum;
 
-
-
    //   double h_1 = water_depth.at<double>(y-1,x);
    //   double h_2 = water_depth.at<double>(y+1,x);
    //   double h_3 = water_depth.at<double>(y,x-1);
@@ -428,6 +432,9 @@ void Water_Simulator::flow_step(){
  water_depth -= flow;
 
 }
+*/
+
+
 
 /*
 Cloud Water_Simulator::projectIntoImage(cv::Mat& img, cv::Mat P){

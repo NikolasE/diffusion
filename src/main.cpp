@@ -15,7 +15,7 @@
 #include <cv_bridge/cv_bridge.h>
 #include <sensor_msgs/image_encodings.h>
 
-#include "water_simulation.h"
+#include "water_simulation/water_simulation.h"
 
 #include "water_simulation/simulator_init.h"
 #include "water_simulation/simulator_step.h"
@@ -33,11 +33,16 @@ bool init_watersimulation(water_simulation::simulator_init::Request &req, water_
 
  ROS_INFO("init was called with id %i", req.id);
 
+
  cv_bridge::CvImagePtr cv_ptr;
  cv_ptr = cv_bridge::toCvCopy(req.land_img, enc::TYPE_64FC1);
 
+ simulator->dry_border = req.add_sink_border;
+
  simulator->setScene(cv_ptr->image, req.viscosity);
  simulator->land_id = req.id;
+
+ cv::imwrite("land_init.png", cv_ptr->image);
 
  res.id_cpy = simulator->land_id;
  return true;
@@ -72,6 +77,8 @@ bool step_watersimulation(water_simulation::simulator_step::Request &req, water_
 
  simulator->sendCloudVisualization();
 
+// simulator->showWaterImages();
+
  return true;
 }
 
@@ -90,7 +97,11 @@ int main(int argc, char ** argv){
 
  if (argc == 1){
 
-  // TODO: activate ros loop
+
+  cv::namedWindow("water");
+
+
+
   ROS_INFO("Water simulation started as Service!");
 
   ros::NodeHandle n;
