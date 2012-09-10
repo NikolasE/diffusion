@@ -31,56 +31,33 @@ typedef pcl::PointCloud<pcl_Point> Cloud;
 
 struct Water_Simulator {
 
- ros::NodeHandle nh;
- ros::Publisher pub_water, pub_land, pub_sum, pub_flow;
 
+public:
+
+
+
+ Cloud getWaterCloud();
+
+ /** ID to identity if iteration is requested for the current scene */
  int land_id;
 
+ /** true iff water at the outmost cells should vanish in each timestep */
  bool dry_border;
 
- cv::Mat land_height;
- cv::Mat water_depth;
- cv::Mat flow;
- cv::Mat mask_;
-
- Cloud::Ptr land_cloud_msg;
-
- Cloud cloud_;
- Cloud land_cloud;
- cv::Mat sum_;
-
- float img_to_height_factor;
- float px2m_scale;
- float viscosity_;
 
  Water_Simulator(){
-
-//  img_to_height_factor = 0.2/255; // full white translates to 0.2m
 
   px2m_scale = 2/640.0; // 4 m length for a VGA-image
 
   pub_water = nh.advertise<Cloud>("/simulator_water", 1);
   pub_land = nh.advertise<Cloud>("/simulator_land", 10);
-  pub_sum = nh.advertise<Cloud>("/simulator_total", 10);
-
-
-  //land_height = cv::Mat(480,640,CV_64FC1); // height above zero
-  //water_depth = cv::Mat(480,640,CV_64FC1); // height above zero
-  //dummy = cv::Mat(480,640,CV_64FC1); // used for storage of intermediate values
-
-//  water_depth.setTo(0);
-//  land_height.setTo(0);
-//  dummy.setTo(0);
  }
 
-// void visualizeWater(cv::Mat& img, cv::Mat P);
 
-// void setScene(const cv::Mat& land, const cv::Mat& water);
  void setScene(const cv::Mat& land, float viscosity = 0.5);
 
  void sendCloudVisualization();
 
- void updateScene(const cv::Mat& land);
 
 
  void showWaterImages();
@@ -92,17 +69,40 @@ struct Water_Simulator {
 
 // void flow_step();
 
- void flow_stepStone();
+ void iterate();
 
+ cv::Mat getWaterImage(){return water_depth;}
 
-
-
- void createSimData();
 
 private:
- Cloud img2Cloud(const cv::Mat& img, cv::Scalar color, bool ignore_zero = false);
 
- Cloud getWaterCloud();
+ ros::NodeHandle nh;
+ ros::Publisher pub_water, pub_land, pub_sum, pub_flow;
+
+
+ Cloud::Ptr land_cloud_msg;
+
+ Cloud cloud_;
+ Cloud land_cloud;
+ cv::Mat sum_;
+
+
+
+ cv::Mat land_height;
+ cv::Mat water_depth;
+ cv::Mat flow;
+ cv::Mat mask_;
+
+
+ Cloud img2Cloud(const cv::Mat& img, cv::Scalar color, bool ignore_zero = false);
+ void createSimData();
+
+ void updateScene(const cv::Mat& land);
+ float viscosity_;
+
+ /** Scaling from image to cloud to show simulation on RVIZ */
+ float px2m_scale;
+
 
 
 };

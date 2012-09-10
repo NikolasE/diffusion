@@ -65,12 +65,12 @@ bool step_watersimulation(water_simulation::simulator_step::Request &req, water_
    water_simulation::msg_source_sink water = req.sources_sinks.at(i);
    simulator->setWaterHeight(water.height, water.radius, water.x, water.y);
   }
-  simulator->flow_stepStone();
+  simulator->iterate();
  }
 
  cv_bridge::CvImage out_msg;
  out_msg.encoding = sensor_msgs::image_encodings::TYPE_64FC1;
- out_msg.image    = simulator->water_depth;
+ out_msg.image    = simulator->getWaterImage();
 
  res.valid_id = true;
  res.water_img = *out_msg.toImageMsg();
@@ -124,7 +124,7 @@ int main(int argc, char ** argv){
 
   land = cv::imread(argv[1],0);
   cv::resize(land, land, cv::Size(),scale,scale, CV_INTER_CUBIC);
-  land.convertTo(land, CV_64FC1,simulator->img_to_height_factor);
+  land.convertTo(land, CV_64FC1,0.4/255); // conversion from uchar image to meters
 
   simulator->setScene(land,1);
 
@@ -148,7 +148,7 @@ int main(int argc, char ** argv){
 
    for (int i=0; i<iter_per_step; ++i){
     simulator->setWaterHeight(0.2,5,x,y);
-    simulator->flow_stepStone();
+    simulator->iterate();
     iteration++;
    }
 
