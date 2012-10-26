@@ -22,12 +22,22 @@
 #include "water_simulation/msg_source_sink.h"
 
 
+
+
+
 using namespace std;
 
 Water_Simulator* simulator;
 
 namespace enc = sensor_msgs::image_encodings;
 
+/**
+* Handles a service request to initialize the simulation
+*
+* @param req Service Request (with id and scene definition)
+* @param res Service
+* @return always true
+*/
 bool init_watersimulation(water_simulation::simulator_init::Request &req, water_simulation::simulator_init::Response &res){
 
 
@@ -36,19 +46,27 @@ bool init_watersimulation(water_simulation::simulator_init::Request &req, water_
 
  cv_bridge::CvImagePtr cv_ptr;
  cv_ptr = cv_bridge::toCvCopy(req.land_img, enc::TYPE_64FC1);
+ simulator->initializeSimulation(cv_ptr->image, req.viscosity);
 
+ simulator->land_id = req.id;
  simulator->dry_border = req.add_sink_border;
 
- simulator->setScene(cv_ptr->image, req.viscosity);
- simulator->land_id = req.id;
-
- cv::imwrite("land_init.png", cv_ptr->image);
+ // cv::imwrite("land_init.png", cv_ptr->image);
 
  res.id_cpy = simulator->land_id;
  return true;
 
 }
 
+
+/**
+*
+* Handles a service request to the simulation service. Sources and Sink are applied to the waterdepth and the simulation is run
+*
+* @param req Service Request (with id, sources, sinks)
+* @param res Service Result
+* @return true iff correct id was given
+*/
 bool step_watersimulation(water_simulation::simulator_step::Request &req, water_simulation::simulator_step::Response & res){
 
  if (req.id != simulator->land_id){
@@ -57,7 +75,21 @@ bool step_watersimulation(water_simulation::simulator_step::Request &req, water_
   return true;
  }
 
+
+ if (req.update_land_img){
+  cv_bridge::CvImagePtr cv_ptr;
+  cv_ptr = cv_bridge::toCvCopy(req.land_img, enc::TYPE_64FC1);
+  simulator->updateScene(cv_ptr->image);
+ }
+
+ if (req.update_viscosity){
+  simulator->setViscosity(req.viscosity);
+ }
+
+
 // ROS_INFO("Simulating %i steps", req.iteration_cnt);
+
+ ros::Time start = ros::Time::now();
 
  for (int iter = 0; iter < req.iteration_cnt; ++iter){
   // water: (new height can also be zero (sink area)
@@ -68,6 +100,9 @@ bool step_watersimulation(water_simulation::simulator_step::Request &req, water_
   simulator->iterate();
  }
 
+ ROS_INFO("Water iterations: %f ms", (ros::Time::now()-start).toSec()*1000.0);
+
+
  cv_bridge::CvImage out_msg;
  out_msg.encoding = sensor_msgs::image_encodings::TYPE_64FC1;
  out_msg.image    = simulator->getWaterImage();
@@ -77,7 +112,7 @@ bool step_watersimulation(water_simulation::simulator_step::Request &req, water_
 
  simulator->sendCloudVisualization();
 
-// simulator->showWaterImages();
+ simulator->showWaterImages();
 
  return true;
 }
@@ -126,7 +161,7 @@ int main(int argc, char ** argv){
   cv::resize(land, land, cv::Size(),scale,scale, CV_INTER_CUBIC);
   land.convertTo(land, CV_64FC1,0.4/255); // conversion from uchar image to meters
 
-  simulator->setScene(land,1);
+  simulator->initializeSimulation(land,1);
 
   //  cv::namedWindow("land",1);
   //  cv::imshow("land", land);

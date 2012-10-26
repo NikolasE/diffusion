@@ -1,6 +1,13 @@
 int32 id                      # should correspond to id in simulator_init or no simulation is performed
 int32 iteration_cnt           # number of iterations to be simulated
 msg_source_sink[] sources_sinks
+
+bool update_land_img          # true if land height should be updated (if false, land_img is ignored)   
+sensor_msgs/Image land_img    # update of land height
+
+bool update_viscosity         # true if viscosity should be updated
+float32 viscosity             # new 0 < viscosity <= 1
+
 ---
 bool valid_id                 # false if wrong id was given
 sensor_msgs/Image water_img   # distribution of water on the surface

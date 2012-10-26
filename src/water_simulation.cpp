@@ -35,12 +35,31 @@ Cloud Water_Simulator::img2Cloud(const cv::Mat& img, cv::Scalar color,bool ignor
 }
 
 
+/**
+*
+* @param threshold  Cells with less water are returned as zeros
+*/
+/// Returns water depth after thresholding
+cv::Mat Water_Simulator::getWaterImage(float threshold){
+// cv::Mat thres;
+// cv::Mat cpy;
+// water_depth.convertTo(cpy, CV_32FC1,1);
+// cv::threshold(cpy,thres, threshold,1,CV_THRESH_TOZERO);
+// thres.convertTo(thres, CV_64FC1,1);
+// return thres;
 
+ return water_depth;
+}
+
+
+
+/**
+* @param land new surface
+*/
+/// Setting a new surface (e.g. after user has changed it)
 void Water_Simulator::updateScene(const cv::Mat& land){
 
  land_height = land;
-
- ROS_INFO("Initializing simulation with %i cells", land.rows*land.cols);
 
  land_cloud = img2Cloud(land_height,cv::Scalar(255,0,0));
  land_cloud_msg = land_cloud.makeShared();
@@ -49,20 +68,27 @@ void Water_Simulator::updateScene(const cv::Mat& land){
 
 
 /**
- *
- * Intialization of scene.
- *
- * @param land definition of ground level at each position. Expected to be 64FC1 image with non-negative values
- * @param viscosity viscosity of water used in simulation. (0 < v <= 1)
- */
-void Water_Simulator::setScene(const cv::Mat& land, float viscosity){
+*
+* Intialization of scene.
+*
+* @todo make it work with negative z-values for land!
+*
+* @param land definition of ground level at each position. Expected to be 64FC1 image with non-negative values
+* @param viscosity viscosity of water used in simulation. (0 < v <= 1)
+*/
+void Water_Simulator::initializeSimulation(const cv::Mat& land, float viscosity){
 
  viscosity_ = viscosity;
 
  if (!(0<viscosity_ && viscosity_ <= 1)){
   ROS_FATAL("Water_Simulator::setScene: viscosity has to be in (0,1] !");
-  assert(0<viscosity_ && viscosity_ <= 1);
+  assert(0 <= viscosity_ && viscosity_ <= 1);
  }
+
+
+ // double min_,max_;
+ // cv::minMaxLoc(land, &min_, &max_);
+ // assert(min_>0);
 
  updateScene(land);
 
@@ -76,15 +102,16 @@ void Water_Simulator::setScene(const cv::Mat& land, float viscosity){
 
 
 /**
- * Returns current water level as unorganized pointcloud. If a cell contains more than
- * 0.002 water, a point in the middle of the cell and with the z-value of the current waterlevel is added to
- * the resulting point cloud
- *
- * @todo 0.002 as parameter
- * @todo return water as organized cloud to simplify meshing
- * @return water level as pointcloud
- * @see px2m_scale
- */
+* Returns current water level as unorganized pointcloud. If a cell contains more than
+* 0.002 water, a point in the middle of the cell and with the z-value of the current waterlevel is added to
+* the resulting point cloud
+*
+* @todo 0.002 as parameter
+* @todo return water as organized cloud to simplify meshing
+* @return water level as pointcloud
+* @see px2m_scale
+*
+*/
 Cloud Water_Simulator::getWaterCloud(){
  Cloud c;
  c.reserve(water_depth.cols*water_depth.rows);
@@ -94,14 +121,16 @@ Cloud Water_Simulator::getWaterCloud(){
  p.g = 0;
  p.b = 255;
 
- for (int i=0; i<water_depth.cols; ++i){
-  for (int j=0; j<water_depth.rows; ++j){
 
-   p.x = i*px2m_scale;
+ // contains thresholding
+ cv::Mat depth = getWaterImage();
+
+ for (int i=0; i<depth.cols; ++i){
+  p.x = i*px2m_scale;
+  for (int j=0; j<depth.rows; ++j){
+
    p.y = j*px2m_scale;
-   p.z = water_depth.at<double>(j,i);
-   if (p.z < 0.002) continue;
-
+   p.z = depth.at<double>(j,i);
    p.z += land_height.at<double>(j,i);
 
    c.push_back(p);
@@ -113,16 +142,15 @@ Cloud Water_Simulator::getWaterCloud(){
 
 
 /**
- * Sends visualization to RVIZ in frame /fixed_frame (if someone is listening)
- *
- * Water on topic "simulator_water"
- * Surface on topic "simulator_land"
- */
+* Sends visualization to RVIZ in frame /fixed_frame (if someone is listening)
+*
+* Water on topic "simulator_water"
+* Surface on topic "simulator_land"
+*/
 void Water_Simulator::sendCloudVisualization(){
 
 
  if (pub_land.getNumSubscribers()>0){
-  // land cloud only changes on init
   land_cloud_msg->header.stamp = ros::Time::now ();
   pub_land.publish(land_cloud_msg);
  }
@@ -137,15 +165,25 @@ void Water_Simulator::sendCloudVisualization(){
 
  // cv::Mat total = land_height+water_depth;
  //
-// if (pub_sum.getNumSubscribers()>0){
+ // if (pub_sum.getNumSubscribers()>0){
  // Cloud total_c = img2Cloud(total, cv::Scalar(0,0,255));
  // msg = total_c.makeShared();
  // msg->header.frame_id = "/fixed_frame";
  // msg->header.stamp = ros::Time::now ();
  // pub_sum.publish(msg);
-// }
+ // }
 
 }
+
+///**
+// * Sets new land height (e.g. after user changed the surface) without reseting the water height
+// *
+// * @param new_height  new landscape
+// */
+//void Water_Simulator::updateLand(const cv::Mat& new_height){
+// assert(new_height.cols == land_height.cols && new_height.rows == land_height.rows);
+// land_height = new_height;
+//}
 
 
 void Water_Simulator::updateLandHeight(const Cloud& cloud, const cv::Mat& mask){
@@ -165,8 +203,8 @@ void Water_Simulator::updateLandHeight(const Cloud& cloud, const cv::Mat& mask){
 }
 
 /**
- * Visualization of Water and Land as Debug info using cv::namedwindows ("landHeight" and "waterdepth")
- */
+* Visualization of Water and Land as Debug info using cv::namedwindows ("landHeight" and "waterdepth")
+*/
 void Water_Simulator::showWaterImages(){
 
  cv::namedWindow("landHeight", 1);
@@ -214,15 +252,16 @@ void Water_Simulator::showWaterImages(){
 
 
 /**
- * Computation of one iteration of the simulation
- *
- * @see dry_border, viscosity_
- * @todo let water percolate
- */
+* Computation of one iteration of the simulation
+*
+* @todo if land is below zero, nothing happens!!
+*
+* @see dry_border, initializeSimulation
+* @todo let water percolate
+*/
 void Water_Simulator::iterate(){
 
 // ros::Time start= ros::Time::now();
-
 
  assert(flow.size == water_depth.size);
  assert(land_height.size == water_depth.size);
@@ -263,7 +302,7 @@ void Water_Simulator::iterate(){
 
    // cell with less than half a mm of water is ignored
    // TODO: let water percolate
-   if (water <= 0.005) continue;
+   // if (water <= 0.005) continue;
 
    double stone = land_height.at<double>(y,x);
 
@@ -315,27 +354,31 @@ void Water_Simulator::iterate(){
    out_flow +=mass;
 
 
-   // Verteilung der Masse auf die Nachbarn
-   for (uint i=0; i<4; ++i)
-    {
+//   // Verteilung der Masse auf die Nachbarn
+//   for (uint i=0; i<4; ++i)
+//    {
+//
+//    float height = heights[i];
+//
+//    if (height<0) continue;
+//
+//    // wassermenge haengt von relativer Hoehe ab
+//    double flow_ = (max_height-height)/dist_sum*mass;
+//
+//    switch(i)
+//    {
+//    case 0: flow.at<double>(y-1,x) += flow_; break;
+//    case 1: flow.at<double>(y+1,x) += flow_; break;
+//    case 2: flow.at<double>(y,x-1) += flow_; break;
+//    case 3: flow.at<double>(y,x+1) += flow_; break;
+//    }
+//    }
 
-    float height = heights[i];
-
-    if (height<0) continue;
-
-    // wassermenge haengt von relativer Hoehe ab
-    double flow_ = (max_height-height)/dist_sum*mass;
-
-    switch(i)
-    {
-    case 0: flow.at<double>(y-1,x) += flow_; break;
-    case 1: flow.at<double>(y+1,x) += flow_; break;
-    case 2: flow.at<double>(y,x-1) += flow_; break;
-    case 3: flow.at<double>(y,x+1) += flow_; break;
-    }
-
-
-    }
+   // unrolled loop
+   if (heights[0]>0){  flow.at<double>(y-1,x) += (max_height-heights[0])/dist_sum*mass; }
+   if (heights[1]>0){  flow.at<double>(y+1,x) += (max_height-heights[1])/dist_sum*mass; }
+   if (heights[2]>0){  flow.at<double>(y,x-1) += (max_height-heights[2])/dist_sum*mass; }
+   if (heights[3]>0){  flow.at<double>(y,x+1) += (max_height-heights[3])/dist_sum*mass; }
 
 
   }
@@ -361,8 +404,9 @@ void Water_Simulator::iterate(){
 
  // water_depth -= 0.00001;
 
-// ros::Duration dt = (ros::Time::now()-start);
-// double dt_per_k_cells = dt.toNSec()*1.0/(water_depth.cols*water_depth.rows);
+
+
+ // double dt_per_k_cells = dt.toNSec()*1.0/(water_depth.cols*water_depth.rows);
  // ROS_INFO("total for %i cells: %f ms, %f mys per 1000 cells",dt_per_k_cells,water_depth.cols*water_depth.rows,dt.toNSec()/1000.0/1000.0);
 
 
@@ -393,132 +437,22 @@ void Water_Simulator::createSimData(){
  // cv::imshow("land", land_height/max_height);
  // cv::waitKey(-1);
 
-
 }
 
-/*
-void Water_Simulator::flow_step(){
-
- double c = 0.9;
- flow.setTo(0);
-
- // double sum = cv::sum(water_depth).val[0];
- //
- // ROS_WARN("Image contains: %f",sum);
-
- int water_pixels = 0;
-
- for (int x=1; x<water_depth.cols-1; ++x)
-  for (int y=1; y<water_depth.rows-1; ++y){
-
-   double height = water_depth.at<double>(y,x);
-
-   double mean = 0;
-   double weight_sum = 0;
-   float weight;
-
-   for (int dx=-1; dx<=1; ++dx)
-    for (int dy=-1; dy<=1; ++dy){
-     if (dx == 0 && dy == 0) continue;
-
-     if (dx != 0 && dy !=0){
-      weight = 1/sqrt(2);
-     }else
-      weight = 1;
-
-     mean+= weight*water_depth.at<double>(y+dy,x+dx);
-     weight_sum += weight;
-    }
-
-   mean /= weight_sum;
-
-   //   double h_1 = water_depth.at<double>(y-1,x);
-   //   double h_2 = water_depth.at<double>(y+1,x);
-   //   double h_3 = water_depth.at<double>(y,x-1);
-   //   double h_4 = water_depth.at<double>(y,x+1);
-   //
-   //   double mean = (height + h_1 + h_2 + h_3 + h_4)/5;
-
-   double diff = height-mean;
 
 
-   if (height>0){
-    water_pixels++;
-    //     ROS_INFO("Height: %f, mean: %f, pos: %i %i, new: %f", height, mean, x,y,height-c*diff);
-   }
-
-
-   flow.at<double>(y,x) = c*diff;
-  }
-
- ROS_INFO("Waterpixelcnt: %i", water_pixels);
-
- water_depth -= flow;
-
-}
-*/
-
-
-
-/*
-Cloud Water_Simulator::projectIntoImage(cv::Mat& img, cv::Mat P){
-
- Cloud c;
-
- img.setTo(0);
-
- for (uint x=0; x<cloud_.width; ++x){
-  for (uint y=0; y<cloud_.height; ++y){
-
-   double z = water_depth.at<double>(y,x);
-
-   if (!(z>0)) continue;
-
-   pcl_Point p = cloud_.at(x,y);
-
-   cv::Point2f px;
-   applyPerspectiveTrafo(cv::Point3f(p.x,p.y,p.z),P,px);
-
-   int x = px.x; int y = px.y;
-   if (x<0 || y<0 || x>=img.cols || y >= img.rows) continue;
-
-   int h = int((z/0.02)*30)%30;
-   // ROS_INFO("waterdd z: %f", z);
- //  ROS_INFO("z: %f, col: %i", z,h);
-
-   cv::circle(img, px, 3, cv::Scalar(h,255,255) ,-1);
-   //    cv::circle(img, px, 3, cv::Scalar(90,255,255) ,-1);
-
-   // add to cloud:
-
-   p.z -= z;
-   c.push_back(p);
-  }
- }
-
- cv::cvtColor(img, img, CV_HSV2BGR);
-
- // cv::namedWindow("foo");
- // cv::imshow("foo", img);
- // cv::waitKey(10);
-
- return c;
-
-}
-
- */
 
 /**
- *
- * Setting the waterheight at a circular patch. This can be used to simulate sources or sinks
- *
- * @param new_height new waterheight. (zero for sinks, large for sources)
- * @param radius radius of patch
- * @param x center of patch
- * @param y center of patch
- * @todo additive source (adds the height to the current water level, otherwise a fixed height can first be
- * a source and then turn into a sink. (which could be interesting to define a groundwater level
- */
+*
+* Setting the waterheight at a circular patch. This can be used to simulate sources or sinks
+*
+* @param new_height new waterheight. (zero for sinks, large for sources)
+* @param radius radius of patch
+* @param x center of patch
+* @param y center of patch
+* @todo additive source (adds the height to the current water level, otherwise a fixed height can first be
+* a source and then turn into a sink. (which could be interesting to define a groundwater level
+*/
 void Water_Simulator::setWaterHeight(double new_height, float radius,  int x, int y){
  assert(new_height>=0);
 
